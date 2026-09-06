@@ -1,0 +1,14 @@
+name: TovekCombat
+version: 1.0.0
+main: dev.toprak.combat.CombatPlugin
+api-version: '1.21'
+author: Toprak
+description: High-performance anti-combat logging and PVP tagging system for Paper 1.21+.
+
+commands:
+  combat:
+    description: Check combat status or reload plugin
+    usage: /combat [status|reload]
+    aliases:
+      - ctag
+      - combattag

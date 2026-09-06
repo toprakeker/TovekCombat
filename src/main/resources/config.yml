@@ -1,0 +1,29 @@
+# TovekCombat configuration
+combat-duration-seconds: 15
+
+# Punish player if they disconnect while tagged
+punish-on-quit: true
+broadcast-punishment: true
+
+# Block elytra gliding while in combat
+disable-elytra: true
+
+# Block commands in combat
+blocked-commands:
+  - "/spawn"
+  - "/home"
+  - "/tp"
+  - "/tpa"
+  - "/tpahere"
+  - "/warp"
+  - "/back"
+  - "/fly"
+  - "/feed"
+  - "/heal"
+
+messages:
+  tagged: "<red>⚔ You are now in combat with <white>%opponent%</white>! Do not log out.</red>"
+  untagged: "<green>✔ You are no longer in combat.</green>"
+  command-blocked: "<red>You cannot use commands while in combat (%time%s remaining).</red>"
+  elytra-blocked: "<red>Elytra flight is disabled while in combat!</red>"
+  quit-broadcast: "<red><bold>%player%</bold> logged out during combat and was eliminated!</red>"
