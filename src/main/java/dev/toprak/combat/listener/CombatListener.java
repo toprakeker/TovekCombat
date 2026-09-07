@@ -78,8 +78,12 @@ public class CombatListener implements Listener {
         if (!plugin.getCombatManager().isInCombat(player)) return;
 
         if (plugin.getConfig().getBoolean("punish-on-quit", true)) {
-            // Kill player so inventory drops naturally
-            player.setHealth(0.0);
+            // Kill player so inventory drops naturally on quit
+            // If creative mode, switch to survival so drops actually drop
+            if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) {
+                player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+            }
+            player.damage(10000.0);
 
             if (plugin.getConfig().getBoolean("broadcast-punishment", true)) {
                 String bcast = plugin.getConfig().getString("messages.quit-broadcast", "")
