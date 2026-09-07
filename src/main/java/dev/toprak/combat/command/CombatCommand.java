@@ -10,6 +10,8 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 public class CombatCommand implements CommandExecutor, TabCompleter {
     private final CombatPlugin plugin;
@@ -38,7 +40,8 @@ public class CombatCommand implements CommandExecutor, TabCompleter {
 
         if (plugin.getCombatManager().isInCombat(player)) {
             double sec = plugin.getCombatManager().getRemainingSeconds(player);
-            player.sendMessage(mm.deserialize("<red>You are in combat! Time remaining: <white>" + String.format("%.1f", sec) + "s</white></red>"));
+            player.sendMessage(mm.deserialize("<red>You are in combat! Time remaining: <white>"
+                    + String.format(Locale.ROOT, "%.1f", sec) + "s</white></red>"));
         } else {
             player.sendMessage(mm.deserialize("<green>You are not in combat.</green>"));
         }
@@ -48,7 +51,10 @@ public class CombatCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1 && sender.hasPermission("combat.admin")) {
-            return List.of("status", "reload");
+            String prefix = args[0].toLowerCase(Locale.ROOT);
+            return List.of("status", "reload").stream()
+                    .filter(s -> s.startsWith(prefix))
+                    .collect(Collectors.toList());
         }
         return List.of();
     }

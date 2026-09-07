@@ -12,3 +12,11 @@ commands:
     aliases:
       - ctag
       - combattag
+
+permissions:
+  combat.admin:
+    description: Allows reloading the TovekCombat configuration
+    default: op
+  combat.bypass:
+    description: Bypass combat tagging and command restrictions
+    default: false
