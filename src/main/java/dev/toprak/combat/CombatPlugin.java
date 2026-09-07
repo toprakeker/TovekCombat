@@ -32,7 +32,9 @@ public final class CombatPlugin extends JavaPlugin {
     public void onDisable() {
         if (combatManager != null) {
             combatManager.shutdown();
+            combatManager = null;
         }
+        instance = null;
     }
 
     public static CombatPlugin getInstance() {
