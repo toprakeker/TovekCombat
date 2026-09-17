@@ -2,19 +2,16 @@ package dev.toprak.combat.listener;
 
 import dev.toprak.combat.CombatPlugin;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
 import org.bukkit.entity.AreaEffectCloud;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
-import org.bukkit.entity.ThrownPotion;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
@@ -22,6 +19,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.projectiles.ProjectileSource;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -31,176 +29,130 @@ public class CombatListener implements Listener {
 
     // Effect keys considered offensive enough to start a combat tag.
     private static final Set<String> HARMFUL_EFFECTS = Set.of(
-            "harm", "instant_damage", "poison", "wither", "slow", "slowness",
-            "weakness", "blindness", "confusion", "nausea", "hunger", "levitation",
-            "unluck", "darkness", "slow_digging", "mining_fatigue", "bad_omen",
-            "infested", "oozing", "weaving", "wind_charged", "trial_omen");
+            "POISON",
+            "HARM",
+            "SLOWNESS",
+            "WEAKNESS",
+            "WITHER",
+            "BLINDNESS",
+            "CONFUSION"
+    );
 
     public CombatListener(CombatPlugin plugin) {
         this.plugin = plugin;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPvpDamage(EntityDamageByEntityEvent event) {
+    public void onDamage(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) return;
 
-        Player attacker = resolvePlayer(event.getDamager());
-        if (attacker == null || attacker.getUniqueId().equals(victim.getUniqueId())) return;
+        Player attacker = resolveAttacker(event.getDamager());
+        if (attacker == null || attacker.equals(victim)) return;
 
-        plugin.getCombatManager().tag(victim, attacker);
+        if (attacker.hasPermission("combat.bypass") && victim.hasPermission("combat.bypass")) return;
+
         plugin.getCombatManager().tag(attacker, victim);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPotionSplash(PotionSplashEvent event) {
-        ThrownPotion potion = event.getPotion();
-        if (!(potion.getShooter() instanceof Player thrower)) return;
-        if (!hasHarmfulEffect(potion.getEffects())) return;
+    public void onSplash(PotionSplashEvent event) {
+        ProjectileSource shooter = event.getEntity().getShooter();
+        if (!(shooter instanceof Player attacker)) return;
+
+        boolean isHarmful = false;
+        for (PotionEffect effect : event.getPotion().getEffects()) {
+            if (HARMFUL_EFFECTS.contains(effect.getType().getName().toUpperCase(Locale.ROOT))) {
+                isHarmful = true;
+                break;
+            }
+        }
+        if (!isHarmful) return;
 
         for (LivingEntity affected : event.getAffectedEntities()) {
-            if (!(affected instanceof Player victim)) continue;
-            if (victim.getUniqueId().equals(thrower.getUniqueId())) continue;
-            if (event.getIntensity(affected) <= 0.0) continue;
-            plugin.getCombatManager().tag(victim, thrower);
-            plugin.getCombatManager().tag(thrower, victim);
+            if (affected instanceof Player victim && !victim.equals(attacker)) {
+                plugin.getCombatManager().tag(attacker, victim);
+            }
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onLingeringPotion(AreaEffectCloudApplyEvent event) {
+    public void onCloudApply(AreaEffectCloudApplyEvent event) {
         AreaEffectCloud cloud = event.getEntity();
         ProjectileSource source = cloud.getSource();
-        if (!(source instanceof Player thrower)) return;
+        if (!(source instanceof Player attacker)) return;
 
-        boolean harmful = hasHarmfulEffect(cloud.getCustomEffects());
-        if (!harmful && cloud.getBasePotionType() != null) {
-            harmful = hasHarmfulEffect(cloud.getBasePotionType().getPotionEffects());
+        boolean isHarmful = false;
+        if (cloud.getBasePotionType() != null && HARMFUL_EFFECTS.contains(cloud.getBasePotionType().name().toUpperCase(Locale.ROOT))) {
+            isHarmful = true;
+        } else {
+            for (PotionEffect effect : cloud.getCustomEffects()) {
+                if (HARMFUL_EFFECTS.contains(effect.getType().getName().toUpperCase(Locale.ROOT))) {
+                    isHarmful = true;
+                    break;
+                }
+            }
         }
-        if (!harmful) return;
+        if (!isHarmful) return;
 
         for (LivingEntity affected : event.getAffectedEntities()) {
-            if (!(affected instanceof Player victim)) continue;
-            if (victim.getUniqueId().equals(thrower.getUniqueId())) continue;
-            plugin.getCombatManager().tag(victim, thrower);
-            plugin.getCombatManager().tag(thrower, victim);
+            if (affected instanceof Player victim && !victim.equals(attacker)) {
+                plugin.getCombatManager().tag(attacker, victim);
+            }
         }
     }
 
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onCommand(PlayerCommandPreprocessEvent event) {
         Player player = event.getPlayer();
-        if (!plugin.getCombatManager().isInCombat(player)) return;
-        if (player.hasPermission("combat.bypass")) return;
+        if (!plugin.getCombatManager().isInCombat(player) || player.hasPermission("combat.bypass")) return;
 
-        String root = commandRoot(event.getMessage());
-        if (root.isEmpty()) return;
+        // Split on whitespace to get the root command e.g. "/spawn player" -> "/spawn"
+        String fullCmd = event.getMessage().toLowerCase(Locale.ROOT).trim();
+        String[] parts = fullCmd.split("\\s+");
+        if (parts.length == 0) return;
 
-        boolean isBlocked = plugin.getConfig().getStringList("blocked-commands").stream()
-                .map(CombatListener::normalizeBlockedEntry)
-                .anyMatch(root::equals);
+        String commandRoot = parts[0];
 
-        if (isBlocked) {
-            event.setCancelled(true);
-            double sec = plugin.getCombatManager().getRemainingSeconds(player);
-            String msg = plugin.getConfig().getString("messages.command-blocked", "");
-            if (msg != null && !msg.isBlank()) {
-                player.sendMessage(mm.deserialize(msg.replace("%time%", String.format(Locale.ROOT, "%.1f", sec))));
-            }
+        List<String> allowedCommands = plugin.getConfig().getStringList("allowed-commands");
+        for (String allowed : allowedCommands) {
+            String allowedLower = allowed.toLowerCase(Locale.ROOT).trim();
+            // Prefix the config value with a slash if the operator forgot it
+            if (!allowedLower.startsWith("/")) allowedLower = "/" + allowedLower;
+
+            if (commandRoot.equals(allowedLower)) return;
         }
-    }
 
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onGlide(EntityToggleGlideEvent event) {
-        if (!plugin.getConfig().getBoolean("disable-elytra", true)) return;
-        if (!(event.getEntity() instanceof Player player)) return;
-
-        if (event.isGliding() && plugin.getCombatManager().isInCombat(player) && !player.hasPermission("combat.bypass")) {
-            event.setCancelled(true);
-            String msg = plugin.getConfig().getString("messages.elytra-blocked", "");
-            if (msg != null && !msg.isBlank()) {
-                player.sendMessage(mm.deserialize(msg));
-            }
+        event.setCancelled(true);
+        String msg = plugin.getConfig().getString("messages.command-blocked", "");
+        if (!msg.isBlank()) {
+            player.sendMessage(mm.deserialize(msg));
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
+
         if (!plugin.getCombatManager().isInCombat(player)) return;
 
-        // Clear state first so the forced death does not double-process.
-        plugin.getCombatManager().untagSilent(player);
-
-        if (!plugin.getConfig().getBoolean("punish-on-quit", true)) return;
-        if (player.isDead()) return;
-
-        // Creative/spectator players are immune to damage-based kills, so normalize
-        // the game mode before forcing the death; setHealth also bypasses totems.
-        GameMode gm = player.getGameMode();
-        if (gm == GameMode.CREATIVE || gm == GameMode.SPECTATOR) {
-            player.setGameMode(GameMode.SURVIVAL);
-        }
-        player.setHealth(0.0);
-
-        if (plugin.getConfig().getBoolean("broadcast-punishment", true)) {
-            String bcast = plugin.getConfig().getString("messages.quit-broadcast", "");
-            if (bcast != null && !bcast.isBlank()) {
-                Bukkit.broadcast(mm.deserialize(bcast.replace("%player%", player.getName())));
-            }
+        // Punish combat loggers
+        player.setHealth(0);
+        plugin.getCombatManager().untag(player);
+        
+        String msg = plugin.getConfig().getString("messages.combat-log-broadcast", "");
+        if (!msg.isBlank()) {
+            plugin.getServer().broadcast(mm.deserialize(msg.replace("%player%", player.getName())));
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onDeath(PlayerDeathEvent event) {
-        plugin.getCombatManager().untagSilent(event.getEntity());
+        plugin.getCombatManager().untag(event.getEntity());
     }
 
-    private static Player resolvePlayer(org.bukkit.entity.Entity damager) {
-        if (damager instanceof Player p) {
-            return p;
-        }
-        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player p && p.isOnline()) {
-            return p;
-        }
+    private Player resolveAttacker(Entity damager) {
+        if (damager instanceof Player p) return p;
+        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player p) return p;
         return null;
-    }
-
-    private boolean hasHarmfulEffect(Iterable<PotionEffect> effects) {
-        if (effects == null) return false;
-        for (PotionEffect effect : effects) {
-            if (HARMFUL_EFFECTS.contains(effect.getType().getKey().getKey().toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Extracts the bare command name: strips leading slash, arguments and any namespace prefix. */
-    private static String commandRoot(String message) {
-        String s = message.trim();
-        if (s.startsWith("/")) {
-            s = s.substring(1);
-        }
-        int space = s.indexOf(' ');
-        if (space != -1) {
-            s = s.substring(0, space);
-        }
-        int colon = s.indexOf(':');
-        if (colon != -1) {
-            s = s.substring(colon + 1);
-        }
-        return s.toLowerCase(Locale.ROOT);
-    }
-
-    private static String normalizeBlockedEntry(String entry) {
-        String s = entry.trim();
-        if (s.startsWith("/")) {
-            s = s.substring(1);
-        }
-        int colon = s.indexOf(':');
-        if (colon != -1) {
-            s = s.substring(colon + 1);
-        }
-        return s.toLowerCase(Locale.ROOT);
     }
 }

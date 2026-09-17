@@ -8,13 +8,18 @@ broadcast-punishment: true
 # Block elytra gliding while in combat
 disable-elytra: true
 
-# Block commands in combat
+# Block commands in combat.
+# Entries are matched against the typed command, the command it resolves to, and all of that
+# command's registered aliases, so "/home" also covers "/ehome" and "/essentials:home".
 blocked-commands:
   - "/spawn"
   - "/home"
   - "/tp"
   - "/tpa"
   - "/tpahere"
+  - "/tpaccept"
+  - "/tpyes"
+  - "/rtp"
   - "/warp"
   - "/back"
   - "/fly"
