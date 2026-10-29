@@ -52,6 +52,7 @@ public class CombatListener implements Listener {
         if (attacker.hasPermission("combat.bypass") && victim.hasPermission("combat.bypass")) return;
 
         plugin.getCombatManager().tag(attacker, victim);
+        plugin.getCombatManager().tag(victim, attacker);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -71,6 +72,7 @@ public class CombatListener implements Listener {
         for (LivingEntity affected : event.getAffectedEntities()) {
             if (affected instanceof Player victim && !victim.equals(attacker)) {
                 plugin.getCombatManager().tag(attacker, victim);
+                plugin.getCombatManager().tag(victim, attacker);
             }
         }
     }
@@ -97,6 +99,7 @@ public class CombatListener implements Listener {
         for (LivingEntity affected : event.getAffectedEntities()) {
             if (affected instanceof Player victim && !victim.equals(attacker)) {
                 plugin.getCombatManager().tag(attacker, victim);
+                plugin.getCombatManager().tag(victim, attacker);
             }
         }
     }
