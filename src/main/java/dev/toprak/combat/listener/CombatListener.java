@@ -21,6 +21,7 @@ import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.List;
 import java.util.Locale;
+import dev.toprak.combat.util.Compat;
 import java.util.Set;
 
 public class CombatListener implements Listener {
@@ -84,7 +85,8 @@ public class CombatListener implements Listener {
         if (!(source instanceof Player attacker)) return;
 
         boolean isHarmful = false;
-        if (cloud.getBasePotionType() != null && HARMFUL_EFFECTS.contains(cloud.getBasePotionType().name().toUpperCase(Locale.ROOT))) {
+        String basePotion = Compat.basePotionName(cloud);
+        if (basePotion != null && HARMFUL_EFFECTS.contains(basePotion.toUpperCase(Locale.ROOT))) {
             isHarmful = true;
         } else {
             for (PotionEffect effect : cloud.getCustomEffects()) {
